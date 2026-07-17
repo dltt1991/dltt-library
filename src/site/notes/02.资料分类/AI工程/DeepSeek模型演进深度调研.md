@@ -48,9 +48,11 @@ DeepSeekMoE架构将每层FFN划分为**256个路由专家+1个共享专家**，
 
 ### 2.1 第一代：Multi-Head Latent Attention (MLA) —— V2/V3/R1
 
+![[Pasted image 20260630141827.png\|Pasted image 20260630141827.png]]
 MLA是DeepSeek-V2于2024年5月首次引入的注意力机制  [(arXiv.org)](https://arxiv.org/abs/2405.04434v2) ，其核心思想是**通过低秩投影将KV缓存压缩到潜在空间**，而非像GQA那样通过减少KV头来降低缓存。标准MHA为每个注意力头存储完整的K/V向量，而MLA将所有头的K/V联合压缩为一个共享的低秩潜在向量（latent vector）。
 
 MLA的数学实现可概括为三个步骤。首先，通过下投影矩阵 $W_c$ 将高维K/V压缩为低维潜在向量 $c = W_c \cdot [K;V]$。其次，在注意力计算时通过上投影矩阵 $W_{uk}$、$W_{uv}$ 从潜在向量重建各头的K/V。最后，通过**权重吸收技巧**（weight absorption trick）进一步优化推理效率——将上投影矩阵吸收进查询投影中，使得注意力计算直接在潜在空间完成，避免每次解码时重建完整K/V  [(datacrunch.io)](https://datacrunch.io/blog/deepseek-sglang-multi-head-latent-attention) 。
+![[Pasted image 20260630141926.png\|Pasted image 20260630141926.png]]
 
 MLA带来了**93.3%的KV缓存压缩率**（从V1 67B的MHA到V2的MLA） [(arXiv.org)](https://arxiv.org/abs/2405.04434v2) ，同时实验表明MLA在多个基准上不仅未损失质量，反而**略优于标准MHA**  [(Sebastian Raschka)](https://sebastianraschka.com/llms-from-scratch/ch04/05_mla/) 。这使得MLA成为DeepSeek-V3和R1的标准注意力机制，并被Kimi K2系列等其他模型采用  [(LLMS3.com)](https://llms3.com/node/multi-head-latent-attention-mla) 。
 
@@ -58,9 +60,9 @@ MLA带来了**93.3%的KV缓存压缩率**（从V1 67B的MHA到V2的MLA） [(arXi
 
 ### 2.2 第二代：DeepSeek Sparse Attention (DSA) —— V3.2
 
-2025年9月发布的V3.2-Exp首次引入了**DeepSeek Sparse Attention (DSA)**  [(A2A Protocol)](https://a2aprotocol.ai/insights/deepseek-v32-exp) ，这是注意力机制从"头维度压缩"向"序列维度压缩"演进的关键一步。DSA的核心机制是**闪电索引器**（Lightning Indexer）：模型在处理长序列时，先快速建立索引，然后每个query仅关注最相关的top-k个token块，将计算复杂度从 $O(L^2)$ 降低到近似 $O(kL)$  [(博客园)](https://www.cnblogs.com/xtkyxnx/p/19571916) 。
+2025年9月发布的V3.2-Exp首次引入了**DeepSeek Sparse Attention (DSA)** ，这是注意力机制从"头维度压缩"向"序列维度压缩"演进的关键一步。DSA的核心机制是**闪电索引器**（Lightning Indexer）：模型在处理长序列时，先快速建立索引，然后每个query仅关注最相关的top-k个token块，将计算复杂度从 $O(L^2)$ 降低到近似 $O(kL)$  。
 
-DSA的工程实现使得V3.2在128K序列上实现了**推理成本降低60%+、速度提升3.5倍、内存占用减少70%+**  [(博客园)](https://www.cnblogs.com/xtkyxnx/p/19571916) 。这一技术为V4的混合注意力架构奠定了基础，V3.2可被视为从MLA到CSA+HCA的过渡实验。
+DSA的工程实现使得V3.2在128K序列上实现了**推理成本降低60%+、速度提升3.5倍、内存占用减少70%+**。这一技术为V4的混合注意力架构奠定了基础，V3.2可被视为从MLA到CSA+HCA的过渡实验。
 
 ### 2.3 第三代：CSA + HCA 混合注意力 —— V4
 
